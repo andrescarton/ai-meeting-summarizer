@@ -1,0 +1,7 @@
+[server]
+# Default is 200 MB. Raised so short HD videos still fit; long meetings should
+# be uploaded as audio (see README).
+maxUploadSize = 800
+
+[theme]
+primaryColor = "#1F4E79"

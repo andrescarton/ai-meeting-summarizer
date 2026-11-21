@@ -1,0 +1,19 @@
+# secrets
+.streamlit/secrets.toml
+.env
+# media and generated reports (large / private)
+*.mp4
+*.mov
+*.mkv
+*.mp3
+*.m4a
+*.wav
+*.docx
+audio/
+# python
+__pycache__/
+.pytest_cache/
+.ruff_cache/
+.venv/
+# local sample recordings and generated reports
+samples/
