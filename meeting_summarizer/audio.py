@@ -35,7 +35,7 @@ def ffmpeg_exe() -> str:
 def _run(cmd: list[str]) -> None:
     result = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8", errors="replace")
     if result.returncode != 0:
-        raise AudioError(f"ffmpeg falhou: {result.stderr.strip()[-500:]}")
+        raise AudioError(f"ffmpeg failed: {result.stderr.strip()[-500:]}")
 
 
 def extract_audio_parts(input_path: Path, out_dir: Path, segment_seconds: int = SEGMENT_SECONDS) -> list[Path]:
@@ -50,7 +50,7 @@ def extract_audio_parts(input_path: Path, out_dir: Path, segment_seconds: int = 
     ])
     parts = sorted(out_dir.glob("part_*.mp3"))
     if not parts:
-        raise AudioError("Nenhuma faixa de áudio encontrada no arquivo.")
+        raise AudioError("No audio track found in the file.")
     return parts
 
 

@@ -14,16 +14,22 @@ def _text(docx_bytes):
     return body, cells
 
 
-def test_docx_contains_all_sections():
-    body, cells = _text(build_docx(SAMPLE, [Segment(65, 70, "fala")], "reuniao.mp4"))
-    for heading in ["Resumo executivo", "Principais temas", "Decisões tomadas", "Próximas ações",
-                    "Riscos e pontos de atenção", "Pendências", "Anexo: transcrição"]:
+def test_english_docx_contains_all_sections():
+    body, cells = _text(build_docx(SAMPLE, [Segment(65, 70, "hello")], "meeting.mp4"))
+    for heading in ["Executive summary", "Main topics", "Decisions", "Action items",
+                    "Risks and points of attention", "Open questions", "Appendix: transcript"]:
         assert heading in body
-    assert "Parceria Contoso" in body and "[00:01:05] fala" in body
-    assert "Nenhum item identificado" in body  # empty riscos list
-    assert "Criar cursos" in cells
+    assert "Contoso partnership" in body and "[00:01:05] hello" in body
+    assert "No items identified" in body  # empty risks list
+    assert "Create courses" in cells and "Owner" in cells
 
 
-def test_docx_without_transcript():
-    body, _ = _text(build_docx(SAMPLE, None))
-    assert "Anexo: transcrição" not in body
+def test_headings_follow_meeting_language():
+    body, cells = _text(build_docx(SAMPLE.model_copy(update={"language": "pt"}), None))
+    assert "Resumo executivo" in body and "Pendências" in body and "Responsável" in cells
+    assert "Anexo: transcrição" not in body  # no transcript passed
+
+
+def test_unknown_language_falls_back_to_english_headings():
+    body, _ = _text(build_docx(SAMPLE.model_copy(update={"language": "de"}), None))
+    assert "Executive summary" in body

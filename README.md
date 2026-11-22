@@ -1,8 +1,10 @@
 # AI Meeting Summarizer
 
+**[Try the live app →](https://ai-meeting-summarizer-3nhlkosavbvviawysjhfsq.streamlit.app/)**
+
 Upload a meeting recording (video or audio) and get a Word document with an executive
-summary, main topics (with timestamps), decisions, next actions, risks and open items.
-Meetings in Portuguese.
+summary, main topics (with timestamps), decisions, action items, risks and open questions.
+The report is written in the same language as the meeting (Portuguese, English or auto-detect).
 
 This project was a deliverable requested by the non-profit organisation where I volunteer:
 they wanted their monthly meeting recordings turned into minutes automatically, **at zero cost**.
@@ -30,7 +32,7 @@ be deployed. What changed and why:
 
 | Problem in the prototype | Fix |
 |---|---|
-| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: **68 s end to end** (audio 2.6 s, transcription 6 s, summary 60 s) |
+| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: **31 s end to end** (audio 2.3 s, transcription 4.6 s, summary 24 s) |
 | 8B model saw 2-min chunks, then a slow consolidation pass produced generic topics ("Questions", "Activities") | Gemini's long context takes the whole meeting in one request: no chunking, no consolidation |
 | Executive summary truncated to the first 1,800 words | Whole transcript is used |
 | Prompt contained example topics, biasing every summary | Generic prompt + regression test |
@@ -38,6 +40,7 @@ be deployed. What changed and why:
 | Organisation and partner names misspelled by speech-to-text | User-editable glossary passed to Whisper (`prompt`) and to Gemini |
 | Whisper hallucinations on silence | Segments with `no_speech_prob > 0.8` dropped |
 | Model versions retired by the provider break the app | Gemini model fallback chain (on 404 only) |
+| Newest model is not always the fastest on the free tier | Benchmarked: gemini-3.5-flash took ~20 s vs 60-350 s for 3.8 with equivalent output, so it goes first |
 
 ## Run locally
 

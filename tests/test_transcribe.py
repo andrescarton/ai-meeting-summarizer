@@ -44,6 +44,13 @@ def test_offsets_order_and_silence_filter(tmp_path):
     assert "ACME" in kwargs["prompt"]
 
 
+def test_auto_detect_omits_language_and_empty_prompt(tmp_path):
+    client = FakeGroq({"part_000.mp3": {"segments": []}, })
+    transcribe.transcribe_parts(client, _parts(tmp_path, 1), segment_seconds=900, language=None)
+    _, kwargs = client.calls[0]
+    assert "language" not in kwargs and "prompt" not in kwargs
+
+
 def test_falls_back_to_plain_text(tmp_path):
     client = FakeGroq({"part_000.mp3": SimpleNamespace(text="só texto", segments=None)})
     segs = transcribe.transcribe_parts(client, _parts(tmp_path, 1), segment_seconds=900)

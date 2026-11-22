@@ -16,62 +16,68 @@ from pydantic import BaseModel, Field
 # Google retires model versions often (gemini-2.5-flash already returns 404 for
 # new accounts). So this is a comma-separated FALLBACK CHAIN: if a model is gone
 # (404) the next one is tried. Override with the GEMINI_MODEL setting.
-DEFAULT_MODEL = "gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash"
+# Order chosen by measurement on the free tier (same 10-min meeting, same quality):
+# 3.5-flash answered in ~20 s, 3.8-flash in 60-350 s (queueing on the newest model).
+DEFAULT_MODEL = "gemini-3.5-flash,gemini-3.7-flash,gemini-3.8-flash"
 
 
-class Topico(BaseModel):
-    titulo: str = Field(description="Nome curto do tema")
-    descricao: str = Field(description="2 a 4 frases sobre o que foi dito sobre o tema")
-    inicio: str = Field(description="Timestamp HH:MM:SS em que o tema começou a ser discutido")
+class Topic(BaseModel):
+    title: str = Field(description="Short name of the topic")
+    description: str = Field(description="2 to 4 sentences on what was said about the topic")
+    start: str = Field(description="HH:MM:SS timestamp where the topic started being discussed")
 
 
-class Acao(BaseModel):
-    responsavel: str = Field(description="Quem vai executar, ou 'Não definido'")
-    acao: str
-    prazo: str = Field(description="Prazo mencionado, ou 'Não definido'")
+class ActionItem(BaseModel):
+    owner: str = Field(description="Who will do it, or 'Not specified'")
+    task: str
+    due: str = Field(description="Deadline mentioned, or 'Not specified'")
 
 
-class ResumoReuniao(BaseModel):
-    titulo: str = Field(description="Título descritivo da reunião")
-    resumo_executivo: str = Field(description="2 a 3 parágrafos separados por linha em branco")
-    topicos: list[Topico] = Field(description="Principais temas, em ordem cronológica")
-    decisoes: list[str]
-    proximas_acoes: list[Acao]
-    riscos: list[str] = Field(description="Riscos e pontos de atenção")
-    pendencias: list[str] = Field(description="Perguntas ou assuntos que ficaram em aberto")
+class MeetingSummary(BaseModel):
+    language: str = Field(description="ISO 639-1 code of the language spoken in the meeting, e.g. 'pt' or 'en'")
+    title: str = Field(description="Descriptive title of the meeting")
+    executive_summary: str = Field(description="2 to 3 paragraphs separated by a blank line")
+    topics: list[Topic] = Field(description="Main topics, in chronological order")
+    decisions: list[str]
+    action_items: list[ActionItem]
+    risks: list[str] = Field(description="Risks and points of attention")
+    open_questions: list[str] = Field(description="Questions or subjects left open")
 
 
 SYSTEM_INSTRUCTION = (
-    "Você é um analista de reuniões experiente. Trabalhe SOMENTE com o que está explícito "
-    "na transcrição. Não invente fatos, decisões, responsáveis, prazos ou riscos: se algo não "
-    "foi dito, use uma lista vazia ou 'Não definido'. Agrupe falas sobre o mesmo assunto em um "
-    "único tópico, ignore conversa de abertura e logística sem conteúdo. Escreva em português."
+    "You are an experienced meeting analyst. Use ONLY what is explicit in the transcript. "
+    "Do not invent facts, decisions, owners, deadlines or risks: if something was not said, "
+    "return an empty list or 'Not specified'. Group everything said about the same subject "
+    "into a single topic; ignore small talk and logistics with no content. "
+    "Write every text field in the SAME language spoken in the meeting (translate 'Not specified' too)."
 )
 
 
 def build_prompt(transcript: str, glossary: list[str]) -> str:
     # Note: no example topics here. The prototype's prompt listed example topics,
     # which made the model "find" those topics in every meeting.
-    glossary_line = f"Grafia correta de nomes próprios: {', '.join(glossary)}.\n" if glossary else ""
+    glossary_line = f"Correct spelling of proper names: {', '.join(glossary)}.\n" if glossary else ""
     return (
-        "Analise a transcrição de reunião abaixo (cada linha começa com o timestamp).\n"
-        "A transcrição é automática e pode ter erros de reconhecimento de nomes; corrija-os "
-        "quando o contexto deixar claro.\n"
+        "Analyse the meeting transcript below (each line starts with its timestamp).\n"
+        "It is an automatic transcript and may misspell names; fix them when the context makes it clear.\n"
         f"{glossary_line}\n"
-        f"<transcricao>\n{transcript}\n</transcricao>"
+        f"<transcript>\n{transcript}\n</transcript>"
     )
 
 
-def parse_response(resp: Any) -> ResumoReuniao:
+def parse_response(resp: Any) -> MeetingSummary:
     parsed = getattr(resp, "parsed", None)
-    if isinstance(parsed, ResumoReuniao):
+    if isinstance(parsed, MeetingSummary):
         return parsed
-    return ResumoReuniao.model_validate_json(resp.text)
+    return MeetingSummary.model_validate_json(resp.text)
 
 
 def summarize(
-    transcript: str, api_key: str, model: str = DEFAULT_MODEL, glossary: list[str] | None = None
-) -> ResumoReuniao:
+    transcript: str,
+    api_key: str,
+    model: str = DEFAULT_MODEL,
+    glossary: list[str] | None = None,
+) -> MeetingSummary:
     # Imported here so the rest of the package (and the tests) load fast.
     from google import genai
     from google.genai import types
@@ -85,7 +91,7 @@ def summarize(
     config = types.GenerateContentConfig(
         system_instruction=SYSTEM_INSTRUCTION,
         response_mime_type="application/json",
-        response_schema=ResumoReuniao,
+        response_schema=MeetingSummary,
         temperature=0.2,  # low = faithful to the transcript, little "creativity"
     )
     return generate_with_fallback(client, model_chain(model), build_prompt(transcript, glossary or []), config)
@@ -95,7 +101,7 @@ def model_chain(model: str) -> list[str]:
     return [m.strip() for m in model.split(",") if m.strip()]
 
 
-def generate_with_fallback(client: Any, models: list[str], prompt: str, config: Any) -> ResumoReuniao:
+def generate_with_fallback(client: Any, models: list[str], prompt: str, config: Any) -> MeetingSummary:
     """Try each model in order; move on ONLY when the model no longer exists (404).
 
     Other errors (invalid key, quota) would fail on every model too, so they are
@@ -107,4 +113,4 @@ def generate_with_fallback(client: Any, models: list[str], prompt: str, config: 
         except Exception as exc:
             if getattr(exc, "code", None) != 404 or i == len(models) - 1:
                 raise
-    raise ValueError("Nenhum modelo Gemini configurado.")
+    raise ValueError("No Gemini model configured.")

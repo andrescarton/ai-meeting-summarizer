@@ -14,7 +14,8 @@ from typing import Any
 
 DEFAULT_MODEL = "whisper-large-v3"
 # Whisper treats the prompt as "previous text": it biases spelling of names
-# (e.g. an organisation's acronym transcribed as a similar-sounding word). Groq caps it at 224 tokens, so keep it short.
+# (e.g. an organisation's acronym transcribed as a similar-sounding word).
+# Groq caps it at 224 tokens, so keep it short.
 _PROMPT_MAX_CHARS = 600
 # Segments Whisper itself flags as probably-silence: dropping them removes
 # classic hallucinations like "Legendas pela comunidade Amara.org".
@@ -36,21 +37,21 @@ def _get(obj: Any, name: str, default: Any = None) -> Any:
 
 
 def build_whisper_prompt(glossary: list[str]) -> str:
-    prompt = "Reunião em português."
-    if glossary:
-        prompt += " Termos: " + ", ".join(glossary) + "."
-    return prompt[:_PROMPT_MAX_CHARS]
+    return (", ".join(glossary) + ".")[:_PROMPT_MAX_CHARS] if glossary else ""
 
 
-def transcribe_part(client: Any, path: Path, offset: float, model: str, prompt: str) -> list[Segment]:
-    resp = client.audio.transcriptions.create(
-        file=(path.name, path.read_bytes()),
-        model=model,
-        language="pt",  # skipping language auto-detection is faster and avoids mis-detection
-        prompt=prompt,
-        response_format="verbose_json",  # gives per-segment timestamps
-        temperature=0.0,  # deterministic output
-    )
+def transcribe_part(
+    client: Any, path: Path, offset: float, model: str, prompt: str, language: str | None = "pt"
+) -> list[Segment]:
+    options: dict[str, Any] = {
+        "response_format": "verbose_json",  # gives per-segment timestamps
+        "temperature": 0.0,  # deterministic output
+    }
+    if language:  # a fixed language skips auto-detection: faster and no mis-detection
+        options["language"] = language
+    if prompt:
+        options["prompt"] = prompt
+    resp = client.audio.transcriptions.create(file=(path.name, path.read_bytes()), model=model, **options)
     raw_segments = _get(resp, "segments") or []
     if not raw_segments:  # fallback: plain text only
         text = (_get(resp, "text") or "").strip()
@@ -72,6 +73,7 @@ def transcribe_parts(
     segment_seconds: int,
     model: str = DEFAULT_MODEL,
     glossary: list[str] | None = None,
+    language: str | None = "pt",
     max_workers: int = 4,
 ) -> list[Segment]:
     """Transcribe all parts in parallel and return segments in meeting order.
@@ -82,7 +84,7 @@ def transcribe_parts(
     prompt = build_whisper_prompt(glossary or [])
     with ThreadPoolExecutor(max_workers=max(1, min(max_workers, len(parts)))) as pool:
         futures = [
-            pool.submit(transcribe_part, client, part, i * segment_seconds, model, prompt)
+            pool.submit(transcribe_part, client, part, i * segment_seconds, model, prompt, language)
             for i, part in enumerate(parts)
         ]
         # Collecting in submission order keeps the timeline correct even though
