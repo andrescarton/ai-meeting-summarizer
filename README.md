@@ -32,7 +32,7 @@ be deployed. What changed and why:
 
 | Problem in the prototype | Fix |
 |---|---|
-| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: **31 s end to end** (audio 2.3 s, transcription 4.6 s, summary 24 s) |
+| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: **~70 s end to end** (audio 2.3 s, transcription 4.6 s, summary ~60 s) |
 | 8B model saw 2-min chunks, then a slow consolidation pass produced generic topics ("Questions", "Activities") | Gemini's long context takes the whole meeting in one request: no chunking, no consolidation |
 | Executive summary truncated to the first 1,800 words | Whole transcript is used |
 | Prompt contained example topics, biasing every summary | Generic prompt + regression test |
@@ -40,7 +40,7 @@ be deployed. What changed and why:
 | Organisation and partner names misspelled by speech-to-text | User-editable glossary passed to Whisper (`prompt`) and to Gemini |
 | Whisper hallucinations on silence | Segments with `no_speech_prob > 0.8` dropped |
 | Model versions retired by the provider break the app | Gemini model fallback chain (on 404 only) |
-| Newest model is not always the fastest on the free tier | Benchmarked: gemini-3.5-flash took ~20 s vs 60-350 s for 3.8 with equivalent output, so it goes first |
+| Speed vs. quality of the summary model | Benchmarked on the same transcript: gemini-3.5-flash ~20 s, 3.8-flash ~60 s+ but with much richer topic descriptions in user review, so 3.8 goes first |
 
 ## Run locally
 

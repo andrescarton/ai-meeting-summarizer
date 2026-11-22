@@ -16,9 +16,10 @@ from pydantic import BaseModel, Field
 # Google retires model versions often (gemini-2.5-flash already returns 404 for
 # new accounts). So this is a comma-separated FALLBACK CHAIN: if a model is gone
 # (404) the next one is tried. Override with the GEMINI_MODEL setting.
-# Order chosen by measurement on the free tier (same 10-min meeting, same quality):
-# 3.5-flash answered in ~20 s, 3.8-flash in 60-350 s (queueing on the newest model).
-DEFAULT_MODEL = "gemini-3.5-flash,gemini-3.7-flash,gemini-3.8-flash"
+# Quality first: in a side-by-side review 3.8-flash wrote clearly richer topic
+# descriptions than 3.5-flash. The trade-off is latency on the free tier
+# (3.8: ~60 s, sometimes several minutes when queued; 3.5: ~20 s).
+DEFAULT_MODEL = "gemini-3.8-flash,gemini-3.7-flash,gemini-3.5-flash"
 
 
 class Topic(BaseModel):
