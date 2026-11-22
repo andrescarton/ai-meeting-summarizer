@@ -25,6 +25,12 @@ DEFAULT_GLOSSARY: list[str] = []
 # Whisper language codes. None = let Whisper detect the language.
 MEETING_LANGUAGES: dict[str, str | None] = {"Portuguese": "pt", "English": "en", "Auto-detect": None}
 
+# Gemini fallback chains offered in the app. Both use the same detailed prompt.
+SUMMARY_MODES: dict[str, str] = {
+    "Best quality (~1-5 min)": summarize.DEFAULT_MODEL,
+    "Fast (~30 s)": "gemini-3.5-flash,gemini-3.7-flash,gemini-3.8-flash",
+}
+
 Progress = Callable[[str], None]
 
 
@@ -33,6 +39,7 @@ class PipelineResult:
     summary: summarize.MeetingSummary
     segments: list[transcribe.Segment]
     timings: dict[str, float] = field(default_factory=dict)
+    model: str = ""  # Gemini model that wrote the summary (after any fallback)
 
     @property
     def transcript(self) -> str:
@@ -74,12 +81,12 @@ def run(
 
     t0 = time.perf_counter()
     progress("Writing summary, topics and action items with Gemini...")
-    result_summary = summarize.summarize(
+    result_summary, used_model = summarize.summarize(
         transcribe.format_transcript(segments), gemini_api_key, gemini_model, glossary
     )
     timings["summary_s"] = time.perf_counter() - t0
     timings["total_s"] = sum(timings.values())
-    return PipelineResult(result_summary, segments, timings)
+    return PipelineResult(result_summary, segments, timings, used_model)
 
 
 def main() -> None:
@@ -110,6 +117,7 @@ def main() -> None:
     output.write_bytes(build_docx(result.summary, segments, args.input.name))
     for name, seconds in result.timings.items():
         print(f"{name}: {seconds:.1f}")
+    print(f"summary model: {result.model}")
     print(f"Document saved to {output}")
 
 

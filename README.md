@@ -32,15 +32,16 @@ be deployed. What changed and why:
 
 | Problem in the prototype | Fix |
 |---|---|
-| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: **~70 s end to end** (audio 2.3 s, transcription 4.6 s, summary ~60 s) |
+| 18.5 min for a 10-min meeting; needed a GPU | Inference moved to free APIs: audio 2 s + transcription 5 s + summary 25 s (*Fast*) to 1-5 min (*Best quality*) |
 | 8B model saw 2-min chunks, then a slow consolidation pass produced generic topics ("Questions", "Activities") | Gemini's long context takes the whole meeting in one request: no chunking, no consolidation |
 | Executive summary truncated to the first 1,800 words | Whole transcript is used |
 | Prompt contained example topics, biasing every summary | Generic prompt + regression test |
 | Free-text output parsed with regex | Structured output against a Pydantic schema |
 | Organisation and partner names misspelled by speech-to-text | User-editable glossary passed to Whisper (`prompt`) and to Gemini |
 | Whisper hallucinations on silence | Segments with `no_speech_prob > 0.8` dropped |
-| Model versions retired by the provider break the app | Gemini model fallback chain (on 404 only) |
-| Speed vs. quality of the summary model | Benchmarked on the same transcript: gemini-3.5-flash ~20 s, 3.8-flash ~60 s+ but with much richer topic descriptions in user review, so 3.8 goes first |
+| Summaries too shallow ("2 to 4 sentences" per topic in the schema) | Schema field descriptions ask for who/what/names/numbers/dates: ~40% more detail with the same model |
+| Speed vs. quality of the summary model | Sidebar choice: *Best quality* (gemini-3.8-flash, richer, 1-5 min when queued) or *Fast* (gemini-3.5-flash, ~30 s) |
+| Overloaded (503) or out-of-quota (429) model fails the run | Fallback to the next model on 404/429/503; invalid keys fail fast |
 
 ## Run locally
 

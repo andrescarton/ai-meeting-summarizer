@@ -1,5 +1,7 @@
 from types import SimpleNamespace
 
+import pytest
+
 from meeting_summarizer import summarize
 
 SAMPLE = summarize.MeetingSummary(
@@ -55,20 +57,32 @@ class FakeGemini:
         return SimpleNamespace(parsed=outcome, text="")
 
 
-def test_retired_model_falls_back_to_next():
-    client = FakeGemini({"old": _NotFound(), "new": SAMPLE})
-    assert summarize.generate_with_fallback(client, ["old", "new"], "p", None) is SAMPLE
-    assert client.tried == ["old", "new"]
+class _Busy(Exception):
+    code = 503
 
 
-def test_quota_error_is_not_retried_on_other_models():
-    client = FakeGemini({"a": _Quota(), "b": SAMPLE})
-    try:
+class _BadKey(Exception):
+    code = 401
+
+
+@pytest.mark.parametrize("error", [_NotFound(), _Quota(), _Busy()])
+def test_retired_busy_or_out_of_quota_model_falls_back(error):
+    client = FakeGemini({"first": error, "second": SAMPLE})
+    assert summarize.generate_with_fallback(client, ["first", "second"], "p", None) == (SAMPLE, "second")
+    assert client.tried == ["first", "second"]
+
+
+def test_invalid_key_is_not_retried_on_other_models():
+    client = FakeGemini({"a": _BadKey(), "b": SAMPLE})
+    with pytest.raises(_BadKey):
         summarize.generate_with_fallback(client, ["a", "b"], "p", None)
-        raise AssertionError("expected quota error")
-    except _Quota:
-        pass
     assert client.tried == ["a"]
+
+
+def test_last_model_error_is_raised():
+    client = FakeGemini({"a": _Busy(), "b": _Busy()})
+    with pytest.raises(_Busy):
+        summarize.generate_with_fallback(client, ["a", "b"], "p", None)
 
 
 def test_model_chain_parsing():

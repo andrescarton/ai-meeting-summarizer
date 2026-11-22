@@ -8,7 +8,7 @@ from pathlib import Path
 
 import streamlit as st
 
-from meeting_summarizer import pipeline, summarize, transcribe
+from meeting_summarizer import pipeline, transcribe
 from meeting_summarizer.docx_report import build_docx
 
 st.set_page_config(page_title="AI Meeting Summarizer", page_icon="📝", layout="centered")
@@ -53,6 +53,12 @@ with st.sidebar:
         list(pipeline.MEETING_LANGUAGES),
         help="The summary is written in the same language as the meeting.",
     )
+    summary_mode = st.selectbox(
+        "Summary model",
+        list(pipeline.SUMMARY_MODES),
+        help="Best quality uses gemini-3.8-flash: richer text, but it queues on the free tier. "
+        "Fast uses gemini-3.5-flash.",
+    )
     glossary_text = st.text_area(
         "Glossary (one term per line)",
         "\n".join(pipeline.DEFAULT_GLOSSARY),
@@ -77,7 +83,7 @@ glossary = [t.strip() for t in glossary_text.splitlines() if t.strip()]
 # Streamlit re-runs this whole script on EVERY interaction (even clicking
 # "download"). Keeping the result in session_state, keyed by the upload and the
 # settings, means the APIs are called once per file instead of once per click.
-run_key = (uploaded.file_id, tuple(glossary), meeting_language) if uploaded else None
+run_key = (uploaded.file_id, tuple(glossary), meeting_language, summary_mode) if uploaded else None
 
 if uploaded and st.button("Summarize meeting", type="primary", use_container_width=True):
     with st.status("Processing the meeting...", expanded=True) as status:
@@ -93,7 +99,7 @@ if uploaded and st.button("Summarize meeting", type="primary", use_container_wid
                     glossary=glossary,
                     meeting_language=pipeline.MEETING_LANGUAGES[meeting_language],
                     whisper_model=get_setting("WHISPER_MODEL", transcribe.DEFAULT_MODEL),
-                    gemini_model=get_setting("GEMINI_MODEL", summarize.DEFAULT_MODEL),
+                    gemini_model=get_setting("GEMINI_MODEL") or pipeline.SUMMARY_MODES[summary_mode],
                     progress=st.write,
                 )
             st.session_state["result"] = result
@@ -146,6 +152,7 @@ with tab_transcript:
     st.text_area("Transcript", result.transcript, height=400, label_visibility="collapsed")
 
 with tab_timing:
+    st.caption(f"Summary written by `{result.model}`")
     st.dataframe(
         [{"step": k, "seconds": round(v, 1)} for k, v in result.timings.items()],
         hide_index=True,
